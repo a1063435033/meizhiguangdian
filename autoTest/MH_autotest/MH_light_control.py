@@ -61,13 +61,6 @@ class LightControl(FileOperations):
             return None
         while True:
             if ser.in_waiting > 0:
-                # 读取一行数据
-                # raw_data = ser.readall().decode().rstrip() 
-                # first_json_end = raw_data.find('}{') + 1  # 找到'}{'的位置，并调整以包含第一个'}'
-                # # # 分割字符串
-                # first_json_str = raw_data[:first_json_end]
-                # second_json_str = raw_data[first_json_end:]
-                # 解析JSON字符串为字典
                 raw_data = SerialDataParser.split_json_pairs(ser)
                 first_dict = raw_data[0]
                 second_dict = raw_data[1]
