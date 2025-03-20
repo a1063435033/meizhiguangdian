@@ -1,0 +1,6 @@
+# 设备信息
+device:
+  ser: COM3          # 蓝牙模块串口号
+  pid: AC15188261E0  # 设备PID号
+# 手动调节开关孔位模式，执行次数
+switch_times: 5
