@@ -1,4 +1,6 @@
 import pandas as pd
+import os
+from pathlib import Path
 from datetime import datetime
 from openpyxl import load_workbook
 from openpyxl.chart import LineChart, Reference
@@ -95,14 +97,11 @@ def embed_charts_in_excel(file_path):
 # 主函数
 def main():
     # 原始文件路径
-    input_file = r"D:\testwu\demo\combined_data(1).xlsx"
+    input_file = Path("combined_data.xlsx")
     
     # 处理数据并生成新的Excel文件
     processed_file = process_data(input_file)
     
     # 在生成的Excel文件中嵌入图表
     embed_charts_in_excel(processed_file)
-
-# 执行主函数
-if __name__ == "__main__":
-    main()
+    return Path("output_with_charts.xlsx")

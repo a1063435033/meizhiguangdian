@@ -15,10 +15,15 @@ class SerialDataParser:
                     serial_data = raw_data.decode(errors='ignore')#.rstrip()
                     match = re.findall(r'\{.*?\}', serial_data)
                     first_json_str = match[0]
-                    buffer = json.loads(first_json_str)
-                    if 'code' in buffer.keys():
-                        return buffer
-                    else:
+                    try:
+                        buffer = json.loads(first_json_str)
+                        if 'code' in buffer.keys():
+                            return buffer
+                        else:
+                            first_json_str = match[-1]
+                            buffer = json.loads(first_json_str)
+                            return buffer
+                    except:
                         first_json_str = match[-1]
                         buffer = json.loads(first_json_str)
                         return buffer

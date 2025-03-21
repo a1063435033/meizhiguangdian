@@ -33,16 +33,16 @@ def main():
     log_path = result_path
 
     # 创建线程对象
-    # thread1 = threading.Thread(target=lightControlTest, args=(log_path,))
-    thread2 = threading.Thread(target=powerStripControlTest, args=(log_path,))
+    thread1 = threading.Thread(target=lightControlTest, args=(log_path,))
+    # thread2 = threading.Thread(target=powerStripControlTest, args=(log_path,))
 
     # 启动线程
-    # thread1.start()
-    thread2.start()
+    thread1.start()
+    # thread2.start()
 
     # 等待所有线程完成
-    # thread1.join()
-    thread2.join()
+    thread1.join()
+    # thread2.join()
 
     print("Both methods have completed.")
 

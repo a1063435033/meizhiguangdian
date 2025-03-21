@@ -3,19 +3,19 @@ import serial
 import time
 import json
 import yaml
-import os
-import re
+import sendWechat
+import utils.excelReport as er
 import utils.light_commands
 from datetime import datetime, timedelta
 from openpyxl import Workbook
 from page.fileOperations import FileOperations
-from serial_data_parser import SerialDataParser
+from utils.serial_data_parser import SerialDataParser
 
 class LightControl(FileOperations):
     def __init__(self, filepath):
         super().__init__(filepath)
         self.timeout_seconds = 7
-        config_path = r"D:\meizhiguangdian\autoTest\MH_autotest\config\config.yaml"
+        config_path = r"D:\meizhiguangdian_test\meizhiguangdian\autoTest\MH_autotest\config\config.yaml"
         with open(config_path, 'r', encoding='utf-8') as file:
             self.config_yaml = yaml.safe_load(file)
         self.st = self.config_yaml['autoParams']['st']
@@ -27,7 +27,7 @@ class LightControl(FileOperations):
         self.dim_min = self.config_yaml['ppfdParams']['dim_min']
         self.dim_max = self.config_yaml['ppfdParams']['dim_max']
         self.sunTime = self.config_yaml['ppfdParams']['sunTime']
-    
+        self.filepath = filepath
     def manual_light_adjust_mode(self, ser, dim):
         commands = utils.light_commands.get_manual_light_adjust_mode_Cmd(self.pid, 1, dim)
         ser.write(commands.encode('utf-8'))
@@ -67,7 +67,7 @@ class LightControl(FileOperations):
                 ppfd_num = self.config_yaml['dimconfig'][f'dim{dim}']         
                 difference = manual_dim - ppfd_num
                 status = "通过" if -self.config_yaml['margins']['margin'] <= difference <= self.config_yaml['margins']['margin'] else "失败"
-                log_msg = f"手动测试{status}: 设置{dim}%亮度，ppfd值为{manual_dim}, 差值为{difference}"
+                log_msg = f"手动测试{status}: 设置{dim}%亮度，ppfd值为{manual_dim}, 差值为{difference}, 设定值为{ppfd_num}"
                 self.write_log(log_msg, 'manual_light_adjust_mode_report.txt')
             else:
                 self.write_log(f'manual_dim得值为：{manual_dim},请检查代码', 'test_report.txt')
@@ -111,7 +111,7 @@ class LightControl(FileOperations):
                         self.write_log(f'获取不到PPFD值，PPFD值为：{ppfd}，请检查PPFD传感器问题', 'auto_light_adjust_mode_log.txt')
                         return None
                     
-                if minutes_passed >= et and second_dict['params']['sensor']['ppfd'] != 0:
+                if minutes_passed >= et + 1 and second_dict['params']['sensor']['ppfd'] != 0:
                     ppfd = second_dict['params']['sensor']['ppfd']
                     self.write_log(f'当前时间以超过{et}，PPFD：{ppfd}，灯光未关闭', 'auto_light_adjust_mode_log.txt')
                     return None
@@ -121,7 +121,7 @@ class LightControl(FileOperations):
         nowTime = SerialDataParser.read_serial_data_get_nowTime(ser)
         st = int(nowTime[0]) + 2
         et = st + 3
-        for sunTime in range(1, 5): # 循环遍历一个月中的每一天
+        for sunTime in range(1, 3): # 循环遍历一个月中的每一天
             # 跨天
             if et >=1430:
                 st = 0
@@ -130,7 +130,7 @@ class LightControl(FileOperations):
             end_hours, end_minutes = et // 60, et % 60
             new_time = f"{hours:02}:{minutes:02}"
             end_time = f"{end_hours:02}:{end_minutes:02}"
-            self.write_log(f'开始测试,开始时间为：{new_time},结束时间为：{end_time},日出日落时间为：{sunTime}', 'auto_light_mode.txt')
+            self.write_log(f'开始测试,开始时间为：{new_time},结束时间为：{end_time},日出日落时间为：{sunTime}', 'auto_light_adjust_mode_log')
             data = self.auto_light_adjust_mode(ser, self.pid, st, et, 10, self.darkenT, self.offT, sunTime)
             if data is None:
                 self.write_log(f"Data is None at sunTime={sunTime}. Skipping this iteration.")
@@ -150,6 +150,8 @@ class LightControl(FileOperations):
 
         # 添加标题行
         column_names = list(testReport.keys())
+        # 过滤掉None值
+        column_names = [name for name in column_names if name is not None]
         for col_num, column_name in enumerate(column_names, 1):
             ws.cell(row=1, column=col_num, value=column_name)
 
@@ -162,6 +164,7 @@ class LightControl(FileOperations):
 
         # 保存Excel文件
         wb.save('combined_data.xlsx')
+
     def ppfd_light_adjust_mode(self, ser, ppfd):
         nowTime = SerialDataParser.read_serial_data_get_nowTime(ser)
         st = int(nowTime[0]) + 2
@@ -235,7 +238,23 @@ class LightControl(FileOperations):
         #     self.ppfd_light_adjust_mode(ser, ppfd)
         #     # ppfd -= 500
         #     time.sleep(5)
-        print('控制器灯光控制测试结束')
+        print('控制器灯光控制测试以结束')
+        # markdown_content = """
+        # # 测试以结束
+        # ## 手动模式测试报告文件
+        # manual_light_adjust_mode_report.txt。
+        # ## 自动模式测试报告文件
+        # 自动模式测试报告.xlsx。
+        # """
+        # 调用方法发送Markdown消息
+        sendWechat.send_markdown_message('manual_light_adjust_mode.txt', '自动模式测试报告', 'vip', 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
+        media_id = sendWechat.upload_file_to_wechat(f'{self.filepath}\manual_light_adjust_mode_report.txt', 'manual_light_adjust_mode.txt', 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
+        if media_id:
+            sendWechat.send_file_message_by_media_id(media_id, 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
+
+        media_id = sendWechat.upload_file_to_wechat(er.main(), "自动模式测试报告.xlsx", 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
+        if media_id:
+            sendWechat.send_file_message_by_media_id(media_id, 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
         print('-----------------------------------------------------------------')
 
 

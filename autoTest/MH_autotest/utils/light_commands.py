@@ -1,6 +1,6 @@
 import json
 import time
-from serial_data_parser import SerialDataParser
+from utils.serial_data_parser import SerialDataParser
 
 def get_manual_light_adjust_mode_Cmd(pid, on, dim):
     """
