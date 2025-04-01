@@ -1,3 +1,0 @@
-[2025-04-01 09:56:28]发送手动调节灯光模式命令成功: {"method": "ctlLightSet", "pid": "AC15188261E0", "params": {"mod": 2, "st": 660, "et": 670, "dim_min": 50, "dim_max": 100, "ppfd": 1500, "darkenT": 45, "offT": 50, "sunTime": 0}}
-[2025-04-01 09:58:05]发送手动调节灯光模式命令成功: {"method": "ctlLightSet", "pid": "AC15188261E0", "params": {"mod": 2, "st": 662, "et": 672, "dim_min": 50, "dim_max": 100, "ppfd": 1000, "darkenT": 45, "offT": 50, "sunTime": 0}}
-[2025-04-01 10:00:06]发送手动调节灯光模式命令成功: {"method": "ctlLightSet", "pid": "AC15188261E0", "params": {"mod": 2, "st": 664, "et": 674, "dim_min": 50, "dim_max": 100, "ppfd": 500, "darkenT": 45, "offT": 50, "sunTime": 0}}
