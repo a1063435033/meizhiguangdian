@@ -76,3 +76,18 @@ class SerialDataParser:
                 midnight = dt.replace(hour=0, minute=0, second=0, microsecond=0)
                 minutes_passed = (dt - midnight).total_seconds() / 60
                 return minutes_passed, minutes_since_midnight
+            
+    @staticmethod      
+    def get_serial_data(ser):
+        while True:
+            if ser.in_waiting > 0:
+                # 读取一行数据
+                raw_data = ser.readall().decode().rstrip() 
+                first_json_end = raw_data.find('}{') + 1  # 找到'}{'的位置，并调整以包含第一个'}'
+                # # 分割字符串
+                first_json_str = raw_data[:first_json_end]
+                second_json_str = raw_data[first_json_end:]
+                # 解析JSON字符串为字典
+                first_dict = json.loads(first_json_str)
+                second_dict = json.loads(second_json_str)
+                return first_dict, second_dict

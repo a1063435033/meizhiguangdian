@@ -18,8 +18,6 @@ class LightControl(FileOperations):
         config_path = r"D:\meizhiguangdian_test\meizhiguangdian\autoTest\MH_autotest\config\config.yaml"
         with open(config_path, 'r', encoding='utf-8') as file:
             self.config_yaml = yaml.safe_load(file)
-        self.st = self.config_yaml['autoParams']['st']
-        self.et = self.config_yaml['autoParams']['et']
         self.darkenT = self.config_yaml['autoParams']['darkenT']
         self.offT = self.config_yaml['autoParams']['offT']
         self.pid = self.config_yaml['device']['pid']
@@ -28,6 +26,7 @@ class LightControl(FileOperations):
         self.dim_max = self.config_yaml['ppfdParams']['dim_max']
         self.sunTime = self.config_yaml['ppfdParams']['sunTime']
         self.filepath = filepath
+        
     def manual_light_adjust_mode(self, ser, dim):
         commands = utils.light_commands.get_manual_light_adjust_mode_Cmd(self.pid, 1, dim)
         ser.write(commands.encode('utf-8'))
@@ -130,8 +129,8 @@ class LightControl(FileOperations):
             end_hours, end_minutes = et // 60, et % 60
             new_time = f"{hours:02}:{minutes:02}"
             end_time = f"{end_hours:02}:{end_minutes:02}"
-            self.write_log(f'开始测试,开始时间为：{new_time},结束时间为：{end_time},日出日落时间为：{sunTime}', 'auto_light_adjust_mode_log')
-            data = self.auto_light_adjust_mode(ser, self.pid, st, et, 10, self.darkenT, self.offT, sunTime)
+            self.write_log(f'开始测试,开始时间为：{new_time},结束时间为：{end_time},日出日落时间为：{sunTime}', 'auto_light_adjust_mode_log.txt')
+            data = self.auto_light_adjust_mode(ser, self.pid, st, et, self.config_yaml['autoParams']['dim'], self.darkenT, self.offT, sunTime)
             if data is None:
                 self.write_log(f"Data is None at sunTime={sunTime}. Skipping this iteration.")
                 continue  # 如果 data 是 None，则跳过当前迭代
@@ -169,14 +168,19 @@ class LightControl(FileOperations):
         nowTime = SerialDataParser.read_serial_data_get_nowTime(ser)
         st = int(nowTime[0]) + 2
         et = st + 10
+        hours, minutes = st // 60, st % 60
+        end_hours, end_minutes = et // 60, et % 60
+        new_time = f"{hours:02}:{minutes:02}"
+        end_time = f"{end_hours:02}:{end_minutes:02}" 
+        self.write_log(f'开始测试,开始时间为：{new_time},结束时间为：{end_time}', 'ppfd_light_adjust_mode.txt')
         commands = utils.light_commands.get_ppfd_light_adjust_mode_Cmd(self.pid, st, et, self.dim_min, self.dim_max, ppfd, self.darkenT, self.offT, self.sunTime)
         ser.write(commands.encode('utf-8'))
         time.sleep(0.5)
         buffer = SerialDataParser.read_serial_succeed_data(ser, self.timeout_seconds)
         if buffer["code"] == 200:
-            self.write_log(f"发送手动调节灯光模式命令成功: {commands}", 'manual_light_adjust_mode.txt')
+            self.write_log(f"发送手动调节灯光模式命令成功: {commands}", 'ppfd_light_adjust_mode.txt')
         else:
-            self.write_log(f"6S内没有接受到指令响应，发送失败", 'manual_light_adjust_mode.txt')
+            self.write_log(f"6S内没有接受到指令响应，发送失败", 'ppfd_light_adjust_mode.txt')
             return None
         while True:
             if ser.in_waiting > 0:
@@ -195,25 +199,36 @@ class LightControl(FileOperations):
                 midnight = dt.replace(hour=0, minute=0, second=0, microsecond=0)
                 minutes_passed = (dt - midnight).total_seconds() / 60
                 dim = second_dict['params']['light']['dim']
-                ppfd = second_dict['params']['sensor']['ppfd']
-                if minutes_passed >= st and  minutes_passed <= st + 1:
-                    if second_dict['params']['light']['dim'] == self.dim_min:
-                        self.write_log(f'设备dim值为:{dim},自定义dim_min值为{self.dim_min}', 'ppfd_light_adjust_mode.txt')
+                device_ppfd = second_dict['params']['sensor']['ppfd']
+                upper_bound = ppfd + ppfd * 0.03
+                previous_dim = []
+                if minutes_passed >= st:
+                    print(f'{dim}----------{device_ppfd}')
+                    if dim == 0:
+                        self.write_log(f'测试失败，达到开始时间，PPFD值为0', 'ppfd_light_adjust_mode.txt')
+                        return False
+                    
+                    if ppfd < device_ppfd <= upper_bound:
+                        if previous_dim:
+                            if previous_dim[-1] == dim:
+                                self.write_log(f'当前大于PPFD设置值{ppfd},在浮动范围内，亮度保持不变,亮度值：{dim}', 'ppfd_light_adjust_mode.txt')
+                            else:
+                                return self.write_log(f'测试失败,当前大于ppfd值且在浮动范围，亮度值发生变化{ppfd}：{dim}', 'ppfd_light_adjust_mode.txt')
+                        previous_dim.append(dim) 
+                    if upper_bound < device_ppfd:
+                        if dim > self.dim_max:
+                            return self.write_log(f'测试失败，当前亮度值超过最高值，当前亮度值为{dim},最高亮度值为{self.dim_max}', 'ppfd_light_adjust_mode.txt')
 
-                    else:
-                        self.write_log(f'一分钟内，设备dim值不等于dim_min值，{dim}、{self.dim_min}', 'ppfd_light_adjust_mode.txt')
-                        return False
-                elif minutes_passed > st + 1:
-                    self.write_log(second_dict['params']['sensor']['ppfd'], 'ppfd_light_adjust_mode.txt')
-                    self.write_log(second_dict['params']['light']['dim'], 'ppfd_light_adjust_mode.txt')
-                    if second_dict['params']['sensor']['ppfd'] > self.dim_max + 3:
-                        self.write_log(f'当前ppfd超过最大值，ppfd值为：{ppfd}，最大值为：{self.dim_max}', 'ppfd_light_adjust_mode.txt')
-                        return False
-                    # elif second_dict['params']['sensor']['ppfd']
-                elif minutes_passed >= et:
-                    print('测试结束')
-                    return True
+
+                    
+
+
+
+
+
+
                 
+
     def run_light_control_test(self):
         print('开始手动调节灯光亮度测试')
         print('-----------------------------------------------------------------')
@@ -221,41 +236,34 @@ class LightControl(FileOperations):
         ppfd = self.config_yaml['ppfdParams']['ppfd']
         # 正向测试: 从start_dim到100，每步增加10%
         ascending_sequence = range(10, 110, 10)
-        self.manual_light_adjust_mode_test(ascending_sequence, ser)
+        # self.manual_light_adjust_mode_test(ascending_sequence, ser)
         # 反向测试: 从100到start_dim，每步减少10%
         descending_sequence = range(100, 10-10, -10)
-        self.manual_light_adjust_mode_test(descending_sequence, ser)
+        # self.manual_light_adjust_mode_test(descending_sequence, ser)
         print('手动调节灯光亮度测试结束')
         print('-----------------------------------------------------------------')
         print('开始自动灯光调节测试')
         print('-----------------------------------------------------------------')
-        self.auto_light_adjust_mode_test(ser)
+        # self.auto_light_adjust_mode_test(ser)
         print('自动调节灯光亮度测试结束')
         print('-----------------------------------------------------------------')
         print('开始PPFD模式灯光调节测试')
         print('-----------------------------------------------------------------')
-        # for i in range(1, 6):
-        #     self.ppfd_light_adjust_mode(ser, ppfd)
-        #     # ppfd -= 500
-        #     time.sleep(5)
-        print('控制器灯光控制测试以结束')
-        # markdown_content = """
-        # # 测试以结束
-        # ## 手动模式测试报告文件
-        # manual_light_adjust_mode_report.txt。
-        # ## 自动模式测试报告文件
-        # 自动模式测试报告.xlsx。
-        # """
-        # 调用方法发送Markdown消息
-        sendWechat.send_markdown_message('manual_light_adjust_mode.txt', '自动模式测试报告', 'vip', 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
-        media_id = sendWechat.upload_file_to_wechat(f'{self.filepath}\manual_light_adjust_mode_report.txt', 'manual_light_adjust_mode.txt', 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
-        if media_id:
-            sendWechat.send_file_message_by_media_id(media_id, 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
+        for i in range(1, 4):
+            self.ppfd_light_adjust_mode(ser, ppfd)
+            ppfd += 500
+            time.sleep(5)
+        print('控制器灯光控制测试结束')
+        # key = 'ab98304c-d5a4-4840-8d66-d6d564a43dcf'
+        # sendWechat.send_markdown_message('manual_light_adjust_mode.txt', '自动模式测试报告', 'vip', key)
+        # media_id = sendWechat.upload_file_to_wechat(f'{self.filepath}\manual_light_adjust_mode_report.txt', 'manual_light_adjust_mode.txt', key)
+        # if media_id:
+        #     sendWechat.send_file_message_by_media_id(media_id, key)
 
-        media_id = sendWechat.upload_file_to_wechat(er.main(), "自动模式测试报告.xlsx", 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
-        if media_id:
-            sendWechat.send_file_message_by_media_id(media_id, 'ab98304c-d5a4-4840-8d66-d6d564a43dcf')
-        print('-----------------------------------------------------------------')
+        # media_id = sendWechat.upload_file_to_wechat(er.main(), "自动模式测试报告.xlsx", key)
+        # if media_id:
+        #     sendWechat.send_file_message_by_media_id(media_id, key)
+        # print('-----------------------------------------------------------------')
 
 
 

@@ -75,7 +75,7 @@ def get_ppfd_light_adjust_mode_Cmd(pid, st, et, dim_min, dim_max, ppfd, darkenT,
         }
     }
     return json.dumps(command)
-def get_iHub4Set_light_manual_mode_Cmd(pid, on, dim):
+def get_iHub4Set_light_manual_mode_Cmd(ser, pid, on, dim):
     """
     获取四孔排插灯组手动模式命令。
     :param pid: MH控制器PID
@@ -83,10 +83,16 @@ def get_iHub4Set_light_manual_mode_Cmd(pid, on, dim):
     :param dim: 亮度值 (0-100)
     :return: JSON格式的命令字符串
     """
-    command = {"method": "iHub4Set","pid": pid,"params": {"light":{"mod": 0,"on": on,"dim": dim}}}
-    return json.dumps(command)
+    command = json.dumps({"method": "iHub4Set","pid": pid,"params": {"light":{"mod": 0,"on": on,"dim": dim}}})
+    ser.write(command.encode('utf-8'))
+    time.sleep(0.5)
+    buffer = SerialDataParser.read_serial_succeed_data(ser, 6)
+    if buffer["code"] == 200:
+        return True
+    else:
+        return False
 
-def get_iHub4Set_light_auto_mode_Cmd(pid, st, et, dim, darkenT, offT, sunTime):
+def get_iHub4Set_light_auto_mode_Cmd(ser, pid, st, et, dim, darkenT, offT, sunTime):
     """
     获取四孔排插灯组自动调节灯光模式命令。
     
@@ -101,7 +107,7 @@ def get_iHub4Set_light_auto_mode_Cmd(pid, st, et, dim, darkenT, offT, sunTime):
     :param sunTime: 日照时间
     :return: JSON格式的命令字符串
     """
-    command = {
+    command = json.dumps({
         "method": "iHub4Set",
         "pid": pid,
         "params": {
@@ -115,8 +121,15 @@ def get_iHub4Set_light_auto_mode_Cmd(pid, st, et, dim, darkenT, offT, sunTime):
                 "sunTime": sunTime
             }
         }
-    }
-    return json.dumps(command)
+    })
+    ser.write(command.encode('utf-8'))
+    time.sleep(0.5)
+    buffer = SerialDataParser.read_serial_succeed_data(ser, 6)
+    if buffer["code"] == 200:
+        return True
+    else:
+        return False
+
 
 def get_iHub4Set_light_ppfd_mode_Cmd(pid, st, et, dim_min, dim_max, ppfd, darkenT, offT, sunTime):
     """
